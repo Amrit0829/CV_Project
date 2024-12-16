@@ -1,103 +1,93 @@
-import cv2
-import numpy as np
-import os
-import pyttsx3  # For voice alerts (optional)
-import face_recognition  # For face recognition
 import streamlit as st
-from PIL import Image
 import tempfile
+import os
+from multiprocessing import Process, Pipe
+import time
+import worker1, worker2  # Assuming these modules are in the same directory
 
-# Initialize text-to-speech engine (optional for alerts)
-engine = pyttsx3.init()
+# Function to start the worker processes
+def start_workers(video_files, num_cameras):
+    parent_conns = []
+    processes = []
 
-# Streamlit configuration
-st.title("AI-Powered Surveillance Camera")
-st.text("Upload a video or use webcam for surveillance.")
+    workers = [worker1, worker2]  # You can add more workers as needed
 
-# Specify the directory containing known faces (update the path to the correct location)
-known_faces_dir = "C:/Users/AMRIT SHYAM KADBHANE/Downloads/AI-Powered_Surveillance_Camera/AI-Powered_Surveillance_Camera/"
+    for i in range(num_cameras):
+        parent_conn, child_conn = Pipe()
+        parent_conns.append(parent_conn)
 
-# Load known faces and their labels
-known_faces = []
-known_labels = []
+        # Dynamically assign video file and worker
+        worker = workers[i % len(workers)]
+        p = Process(target=worker.process_video, args=(video_files[i], child_conn))
+        processes.append(p)
+        p.start()
 
-for filename in os.listdir(known_faces_dir):
-    if filename.endswith((".jpg", ".jpeg", ".png")):  # Ensure it's an image file
-        img_path = os.path.join(known_faces_dir, filename)
-        image = face_recognition.load_image_file(img_path)
-        encoding = face_recognition.face_encodings(image)
-        if encoding:  # Check if encoding was found
-            known_faces.append(encoding[0])
-            known_labels.append(os.path.splitext(filename)[0])  # Use filename (without extension) as label
+    return parent_conns, processes
 
-# Function to process frames from the video
-def process_frame(frame):
-    """Process a single frame and return the result with face annotations."""
-    # Convert the frame from BGR to RGB for face_recognition
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+# Function to retrieve vehicle counts from workers
+def get_counts(parent_conns):
+    counts = []
+    for conn in parent_conns:
+        if conn.poll():  # Check if there's data to read
+            counts.append(conn.recv())
+        else:
+            counts.append(0)  # No data received means zero vehicles in the interval
+    return counts
 
-    # Detect faces in the current frame
-    face_locations = face_recognition.face_locations(rgb_frame)
-    face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+# Streamlit app main function
+def main():
+    st.title("Traffic Monitoring System")
+    st.write("Upload videos for traffic analysis and monitor vehicle counts.")
 
-    # Loop over the detected face encodings
-    for face_encoding, face_location in zip(face_encodings, face_locations):
-        # Compare with known faces
-        matches = face_recognition.compare_faces(known_faces, face_encoding)
-        name = "Unknown"
+    # Step 1: User selects the number of cameras
+    num_cameras = st.selectbox("Select the number of cameras (1 to 4):", options=[1, 2, 3, 4])
 
-        # If a match was found, find the corresponding label
-        if True in matches:
-            first_match_index = matches.index(True)
-            name = known_labels[first_match_index]
+    # Step 2: Video upload section
+    st.write(f"Upload {num_cameras} video(s):")
+    uploaded_files = []
+    for i in range(num_cameras):
+        file = st.file_uploader(f"Upload video for Camera {i + 1}:", type=["mp4"], key=f"camera_{i+1}")
+        uploaded_files.append(file)
 
-        # Draw a rectangle around the detected face
-        (top, right, bottom, left) = face_location
-        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-        cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    # Check if all required videos are uploaded
+    if st.button("Start Analysis"):
+        if None in uploaded_files:
+            st.error("Please upload all required videos.")
+            return
 
-        # Trigger an alert if an unknown person is detected
-        if name == "Unknown":
-            alert_user("Alert! Unknown person detected!")
+        # Save uploaded files to temporary paths
+        video_files = []
+        for i, uploaded_file in enumerate(uploaded_files):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_file:
+                tmp_file.write(uploaded_file.read())
+                video_files.append(tmp_file.name)
 
-    # Convert frame to PIL image for Streamlit
-    return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        st.success("Videos uploaded successfully. Starting analysis...")
 
-# Function for alert (optional: voice alert)
-def alert_user(message):
-    """Send an alert (optional: speech alert)."""
-    st.warning(message)  # Display alert in Streamlit UI
-    engine.say(message)  # Speak the message out loud
-    engine.runAndWait()
+        # Step 3: Start worker processes
+        parent_conns, processes = start_workers(video_files, num_cameras)
 
-# Upload video file for analysis
-uploaded_video = st.file_uploader("Upload a video for surveillance", type=["mp4", "mov", "avi"])
+        try:
+            # Step 4: Display real-time counts every 20 seconds
+            st.write("Monitoring traffic. Vehicle counts will update every 20 seconds.")
+            while True:
+                time.sleep(20)
+                counts = get_counts(parent_conns)
+                max_count = max(counts)
+                max_camera = counts.index(max_count) + 1
 
-if uploaded_video is not None:
-    # Save the uploaded video to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_file:
-        tmp_file.write(uploaded_video.read())
-        video_path = tmp_file.name
+                st.write(f"Counts in last 20 seconds: {counts}")
+                st.write(f"Camera with maximum vehicles moving towards: Camera {max_camera} with {max_count} vehicles")
+        except KeyboardInterrupt:
+            st.warning("Stopping traffic monitoring system...")
+        finally:
+            # Step 5: Cleanup processes and temporary files
+            for p in processes:
+                p.terminate()
+            for conn in parent_conns:
+                conn.close()
+            for file in video_files:
+                os.remove(file)
 
-    st.video(video_path)  # Display the video in the Streamlit app
-
-    # Open the video for processing
-    cap = cv2.VideoCapture(video_path)
-
-    # Streamlit's real-time video processing (video playback and face recognition)
-    stframe = st.empty()
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            st.error("Failed to capture frame")
-            break
-
-        # Process the current frame
-        frame_image = process_frame(frame)
-        if frame_image is not None:
-            stframe.image(frame_image, caption="AI Surveillance Camera", use_container_width=True)
-
-    # Release the video capture once done
-    cap.release()
-else:
-    st.text("Upload a video to begin surveillance.")
+if __name__ == "__main__":
+    main()
