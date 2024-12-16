@@ -1,8 +1,7 @@
 import cv2
 import numpy as np
 import os
-import pyttsx3  # For voice alerts (optional)
-import face_recognition  # For face recognition
+import pyttsx3
 import streamlit as st
 from PIL import Image
 
@@ -14,7 +13,7 @@ st.title("AI-Powered Surveillance Camera")
 st.text("Press 'Start' to run the surveillance camera and 'Stop' to end it.")
 
 # Specify the directory containing known faces
-known_faces_dir = "C:/Users/AMRIT SHYAM KADBHANE/Downloads/AI-Powered_Surveillance_Camera/AI-Powered_Surveillance_Camera/"
+known_faces_dir = "C:/path/to/your/faces"
 
 # Load known faces and their labels
 known_faces = []
@@ -23,17 +22,20 @@ known_labels = []
 for filename in os.listdir(known_faces_dir):
     if filename.endswith((".jpg", ".jpeg", ".png")):  # Ensure it's an image file
         img_path = os.path.join(known_faces_dir, filename)
-        image = face_recognition.load_image_file(img_path)
-        encoding = face_recognition.face_encodings(image)
-        if encoding:  # Check if encoding was found
-            known_faces.append(encoding[0])
+        image = cv2.imread(img_path)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        
+        # Use OpenCV's face detector (Haar cascade or DNN)
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+        
+        # Here, you can use the faces' coordinates for embedding features or identification
+        if len(faces) > 0:  # Detect faces
+            known_faces.append(faces)
             known_labels.append(os.path.splitext(filename)[0])  # Use filename (without extension) as label
 
 # Initialize the video capture (use 0 for webcam)
 camera = cv2.VideoCapture(0)
-
-# Define minimum confidence threshold for object detection
-CONFIDENCE_THRESHOLD = 0.5
 
 def alert_user(message):
     """Send an alert (optional: speech alert)."""
@@ -48,28 +50,28 @@ def process_frame():
         st.error("Failed to capture video")
         return None
 
-    # Convert the frame from BGR to RGB for face_recognition
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
     # Detect faces in the current frame
-    face_locations = face_recognition.face_locations(rgb_frame)
-    face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
-    # Loop over the detected face encodings
-    for face_encoding, face_location in zip(face_encodings, face_locations):
-        # Compare with known faces
-        matches = face_recognition.compare_faces(known_faces, face_encoding)
-        name = "Unknown"
-
-        # If a match was found, find the corresponding label
-        if True in matches:
-            first_match_index = matches.index(True)
-            name = known_labels[first_match_index]
-
+    # Loop over the detected face coordinates
+    for (x, y, w, h) in faces:
         # Draw a rectangle around the detected face
-        (top, right, bottom, left) = face_location
-        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-        cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        
+        # For recognition, you would compare the detected face's features with known_faces
+        # For simplicity, we mark faces as "Known" or "Unknown" based on a match (this part is basic)
+        name = "Unknown"
+        for known_face, label in zip(known_faces, known_labels):
+            # Here, you would use embeddings or other techniques for face recognition
+            if any([np.array_equal(known_face, (x, y, w, h)) for (x, y, w, h) in faces]):
+                name = label
+                break
+
+        # Display name above face
+        cv2.putText(frame, name, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
         # Trigger an alert if an unknown person is detected
         if name == "Unknown":
