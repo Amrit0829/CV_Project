@@ -5,15 +5,16 @@ import pyttsx3  # For voice alerts (optional)
 import face_recognition  # For face recognition
 import streamlit as st
 from PIL import Image
+import tempfile
 
 # Initialize text-to-speech engine (optional for alerts)
 engine = pyttsx3.init()
 
 # Streamlit configuration
 st.title("AI-Powered Surveillance Camera")
-st.text("Press 'Start' to run the surveillance camera and 'Stop' to end it.")
+st.text("Upload a video or use webcam for surveillance.")
 
-# Specify the directory containing known faces
+# Specify the directory containing known faces (update the path to the correct location)
 known_faces_dir = "C:/Users/AMRIT SHYAM KADBHANE/Downloads/AI-Powered_Surveillance_Camera/AI-Powered_Surveillance_Camera/"
 
 # Load known faces and their labels
@@ -29,25 +30,9 @@ for filename in os.listdir(known_faces_dir):
             known_faces.append(encoding[0])
             known_labels.append(os.path.splitext(filename)[0])  # Use filename (without extension) as label
 
-# Initialize the video capture (use 0 for webcam)
-camera = cv2.VideoCapture(0)
-
-# Define minimum confidence threshold for object detection
-CONFIDENCE_THRESHOLD = 0.5
-
-def alert_user(message):
-    """Send an alert (optional: speech alert)."""
-    st.warning(message)  # Display alert in Streamlit UI
-    engine.say(message)  # Speak the message out loud
-    engine.runAndWait()
-
-def process_frame():
+# Function to process frames from the video
+def process_frame(frame):
     """Process a single frame and return the result with face annotations."""
-    ret, frame = camera.read()
-    if not ret:
-        st.error("Failed to capture video")
-        return None
-
     # Convert the frame from BGR to RGB for face_recognition
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -78,24 +63,41 @@ def process_frame():
     # Convert frame to PIL image for Streamlit
     return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-# Start and stop buttons for Streamlit
-if "camera_running" not in st.session_state:
-    st.session_state.camera_running = False
+# Function for alert (optional: voice alert)
+def alert_user(message):
+    """Send an alert (optional: speech alert)."""
+    st.warning(message)  # Display alert in Streamlit UI
+    engine.say(message)  # Speak the message out loud
+    engine.runAndWait()
 
-start = st.button("Start")
-stop = st.button("Stop")
+# Upload video file for analysis
+uploaded_video = st.file_uploader("Upload a video for surveillance", type=["mp4", "mov", "avi"])
 
-if start:
-    st.session_state.camera_running = True
-if stop:
-    st.session_state.camera_running = False
+if uploaded_video is not None:
+    # Save the uploaded video to a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_file:
+        tmp_file.write(uploaded_video.read())
+        video_path = tmp_file.name
 
-if st.session_state.camera_running:
+    st.video(video_path)  # Display the video in the Streamlit app
+
+    # Open the video for processing
+    cap = cv2.VideoCapture(video_path)
+
+    # Streamlit's real-time video processing (video playback and face recognition)
     stframe = st.empty()
-    while st.session_state.camera_running:
-        frame_image = process_frame()
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            st.error("Failed to capture frame")
+            break
+
+        # Process the current frame
+        frame_image = process_frame(frame)
         if frame_image is not None:
             stframe.image(frame_image, caption="AI Surveillance Camera", use_container_width=True)
 
-# Release the camera when done
-camera.release()
+    # Release the video capture once done
+    cap.release()
+else:
+    st.text("Upload a video to begin surveillance.")
