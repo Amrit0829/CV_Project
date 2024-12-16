@@ -188,7 +188,6 @@ PyMsgBox
 pyparsing
 pypdf
 pyperclip
-pypiwin32
 PyRect
 PyScreeze
 python-dateutil
