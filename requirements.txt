@@ -198,7 +198,6 @@ python-multipart
 pyttsx3
 pytweening
 pytz
-pywin32
 pywinpty
 PyYAML
 pyzmq
