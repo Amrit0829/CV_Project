@@ -263,7 +263,6 @@ typing-inspect
 typing_extensions
 tzdata
 uri-template
-urllib3
 vboxapi
 vosk
 watchdog
