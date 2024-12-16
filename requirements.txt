@@ -1,8 +1,5 @@
-streamlit
-opencv-python
-opencv-contrib-python
-face-recognition
+opencv-python-headless
+face_recognition
 pyttsx3
+streamlit
 Pillow
-numpy
-cmake
