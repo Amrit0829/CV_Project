@@ -14,7 +14,6 @@ st.title("AI-Powered Surveillance Camera")
 st.text("Press 'Start' to run the surveillance camera and 'Stop' to end it.")
 
 # Specify the directory containing known faces
-# Specify the directory containing known faces (update the path to the correct location)
 known_faces_dir = "C:/Users/AMRIT SHYAM KADBHANE/Downloads/AI-Powered_Surveillance_Camera/AI-Powered_Surveillance_Camera/"
 
 # Load known faces and their labels
@@ -79,19 +78,7 @@ def process_frame():
     # Convert frame to PIL image for Streamlit
     return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-# # Start and stop buttons for Streamlit
-# start = st.button("Start")
-# stop = st.button("Stop")
-
-# if start:
-#     stframe = st.empty()
-#     while True:
-#         frame_image = process_frame()
-#         if frame_image is not None:
-#             stframe.image(frame_image, caption="AI Surveillance Camera", use_column_width=True)
-#         if stop:
-#             break
-
+# Start and stop buttons for Streamlit
 if "camera_running" not in st.session_state:
     st.session_state.camera_running = False
 
@@ -109,7 +96,6 @@ if st.session_state.camera_running:
         frame_image = process_frame()
         if frame_image is not None:
             stframe.image(frame_image, caption="AI Surveillance Camera", use_container_width=True)
-
 
 # Release the camera when done
 camera.release()
