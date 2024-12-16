@@ -5,3 +5,4 @@ face-recognition
 pyttsx3
 Pillow
 numpy
+cmake
