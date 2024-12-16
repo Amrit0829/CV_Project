@@ -264,7 +264,6 @@ typing_extensions
 tzdata
 uri-template
 urllib3
-uvicorn
 vboxapi
 vosk
 watchdog
