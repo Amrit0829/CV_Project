@@ -198,7 +198,6 @@ python-multipart
 pyttsx3
 pytweening
 pytz
-pywinpty
 PyYAML
 pyzmq
 referencing
